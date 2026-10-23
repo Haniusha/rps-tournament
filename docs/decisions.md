@@ -73,3 +73,19 @@ Consequence: follow AGENTS.md. Automated tests and CI are required workflow goal
 - Affected product rules, architecture, security, data, and visuals.
 - Implementation issue/PR and validation evidence.
 - Rollback/migration considerations; superseded decision if applicable.
+
+## D007 — Restore verified local setup (Issue #2)
+
+Status: **Approved (implementation scope)**. Date: 2026-10-23.
+
+Approval source: Product Owner reply “I am approving” to the concrete technical
+plan for [Issue #2](https://github.com/Haniusha/rps-tournament/issues/2), recorded
+in this task and the resulting PR.
+
+Scope: restore the three archive-verified non-secret configuration files;
+repair portable pnpm installation and managed-Linux helper invocation modes;
+verify local install/typecheck/lint/build/D1/preview; update setup instructions.
+Preserve dependency versions, lockfile, game logic, styling, and animations.
+No merge, deployment, or production database operation is authorized.
+
+Evidence and remaining limitations: [local setup verification](local-setup.md).
