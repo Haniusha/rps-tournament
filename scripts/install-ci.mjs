@@ -1,49 +1,34 @@
 import { spawnSync } from "node:child_process";
-import { accessSync, constants } from "node:fs";
+import { accessSync, constants, readFileSync } from "node:fs";
 import path from "node:path";
 import { projectRoot } from "./sites-env.mjs";
 import { readExecutionProfile } from "./execution-profile.mjs";
-import { runNpmInstall } from "./npm-install.mjs";
 
-if (!process.env.npm_execpath) {
-  throw new Error("Run this installer with npm run install:ci.");
+const { packageManager } = JSON.parse(readFileSync(path.join(projectRoot, "package.json"), "utf8"));
+const expectedVersion = packageManager.replace(/^pnpm@/, "");
+if (!process.env.npm_execpath || !process.env.npm_config_user_agent?.startsWith(`pnpm/${expectedVersion} `)) {
+  throw new Error(`Run this installer with ${packageManager}: pnpm run install:ci.`);
 }
 
-if (![
-  "SHARP_IGNORE_GLOBAL_LIBVIPS",
-  "SHARP_FORCE_GLOBAL_LIBVIPS",
-  "npm_config_build_from_source",
-  "NPM_CONFIG_BUILD_FROM_SOURCE",
-].some((key) => key in process.env)) {
-  process.env.SHARP_IGNORE_GLOBAL_LIBVIPS = "1";
+function run(command, args) {
+  const result = spawnSync(command, args, { cwd: projectRoot, stdio: "inherit" });
+  if (result.error) throw result.error;
+  if (result.signal) {
+    process.kill(process.pid, result.signal);
+    process.exit(1);
+  }
+  if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
 if (readExecutionProfile() === "managed-linux") {
-  const result = spawnSync("bash", [path.join(projectRoot, "scripts/install-ci.sh")], {
-    stdio: "inherit",
-  });
-  if (result.error) throw result.error;
-  process.exit(result.status ?? 1);
+  run("bash", [path.join(projectRoot, "scripts/install-pnpm.sh")]);
+} else {
+  // Use the invoking pinned pnpm entrypoint, without a shell or global install.
+  // Keep caller HOME/proxy/cache settings and the workspace's build allowlist.
+  run(process.execPath, [process.env.npm_execpath, "install", "--frozen-lockfile",
+    "--prod=false", "--optional", "--prefer-offline"]);
 }
 
-// Invoke npm's JavaScript entrypoint, avoiding platform-specific shell shims.
-const installed = await runNpmInstall([
-  process.execPath,
-    process.env.npm_execpath, "ci", "--prefix", projectRoot, "--workspaces=false",
-    "--include=dev", "--include=optional", "--prefer-offline", "--no-audit", "--no-fund",
-]);
-if (installed.signal) process.kill(process.pid, installed.signal);
-if (installed.code !== 0 || installed.signal) process.exit(installed.code || 1);
-
-try {
-  accessSync(
-    path.join(
-      projectRoot, "node_modules", ".bin",
-      process.platform === "win32" ? "vinext.cmd" : "vinext",
-    ),
-    process.platform === "win32" ? constants.F_OK : constants.X_OK,
-  );
-} catch {
-  console.error("npm ci exited successfully but the local vinext executable is unavailable.");
-  process.exitCode = 69;
-}
+accessSync(path.join(projectRoot, "node_modules", ".bin",
+  process.platform === "win32" ? "vinext.cmd" : "vinext"),
+process.platform === "win32" ? constants.F_OK : constants.X_OK);
